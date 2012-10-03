@@ -20,14 +20,14 @@ void setRobotSpeed(int speed) {
 }
 void goForward(int robotSpeed) {
  setRobotSpeed(robotSpeed);
- leftMotor.run(FORWARD); 
- rightMotor.run(FORWARD); 
+ leftMotor.run(BACKWARD); 
+ rightMotor.run(BACKWARD); 
 
 }
 void goBackward(int robotSpeed) {
  setRobotSpeed(robotSpeed);
- leftMotor.run(BACKWARD); 
- rightMotor.run(BACKWARD); 
+ leftMotor.run(FORWARD); 
+ rightMotor.run(FORWARD); 
 }
 void turnLeft(int turnSpeed) {
  setRobotSpeed(turnSpeed);
@@ -46,7 +46,22 @@ void goRelease() {
 
 
 void loop() {
-  Serial.println("forward");
+  goForward(SAME_SPEED);
+  delay(9000);
+  
+  goBackward(0.75*255);
+  delay(6000);
+
+  goBackward(0.50*255);
+  delay(8000);
+  
+  goBackward(0.25*255);
+  delay(8000);
+  
+  goRelease();
+  delay(2000);
+  
+/*  Serial.println("forward");
   
   goForward(SAME_SPEED);
   delay(2000);
@@ -65,5 +80,5 @@ void loop() {
   
   Serial.println("released motors");
   goRelease();
-  delay(2000);
+  delay(2000); */
 }
