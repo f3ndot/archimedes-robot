@@ -2,73 +2,140 @@
 #define SAME_SPEED -1
 #define MAX_SPEED 255
 
+#define BOOTUP_AVG_NUM 10
+#define BOOTUP_JUNK_NUM 10
+
+#define STATE_PANIC 0
+#define STATE_SAFE 1
+
+#define GO_SPEED 75
+
+#define ALERT_TOLERENCE 50
+
 // Instantiates two motors
 ArchimedesMotor1 rightMotor;
 ArchimedesMotor2 leftMotor;
 
-// Give timers an initial speed
-void setup() {  
-  rightMotor.setSpeed(100);     // set the speed to 100/255
-  leftMotor.setSpeed(100);     // set the speed to 100/255
+int bootAvg = 0;
+int deltaState = STATE_SAFE;
+int sensorValue = 0;
+
+void setup() {
+  Serial.begin(9600);           // set up Serial library at 9600 bps
+  Serial.println("Calculating table reference value");
+  
+  int distanceRead = 0;
+
+  for(int i = 0; i <= (BOOTUP_AVG_NUM + BOOTUP_JUNK_NUM); i++) {
+    distanceRead = analogRead(A0);
+    if(i > BOOTUP_JUNK_NUM) {
+      Serial.print ("Read: "); 
+      Serial.print (distanceRead); 
+      Serial.print (", Total: "); 
+      bootAvg += distanceRead;
+      Serial.println (bootAvg);
+    } else {
+      Serial.print ("Ignored: "); 
+      Serial.print (distanceRead); 
+      Serial.print (", Total: "); 
+      Serial.println (bootAvg);
+    }
+    delay(100);
+  }
+
+  bootAvg /= BOOTUP_AVG_NUM;
+
+  Serial.print("Average: ");
+  Serial.println(bootAvg);
+
+
+  Serial.println("Turning on motors");
+  goForward(GO_SPEED);
 }
 
-// High-Level robot set speed func.
 void setRobotSpeed(int speed) {
   if(0 <= speed <= 255) {
-    rightMotor.setSpeed(speed);
-    leftMotor.setSpeed(speed);
+    rightMotor.setSpeed(speed);     // set the speed to 200/255
+    leftMotor.setSpeed(speed);     // set the speed to 200/255     
   }
 }
-
-// High-Level robot forward func.
 void goForward(int robotSpeed) {
- setRobotSpeed(robotSpeed);
- leftMotor.run(BACKWARD); 
- rightMotor.run(BACKWARD); 
+  Serial.println("FORWARD");
+  setRobotSpeed(robotSpeed);
+  leftMotor.run(BACKWARD); 
+  rightMotor.run(BACKWARD); 
 }
-
-// High-Level robot backward func.
 void goBackward(int robotSpeed) {
+  Serial.println("BACKWARD");
   setRobotSpeed(robotSpeed);
   leftMotor.run(FORWARD); 
   rightMotor.run(FORWARD); 
 }
-
-// High-Level robot turn left func.
 void turnLeft(int turnSpeed) {
-  setRobotSpeed(turnSpeed);
-  leftMotor.run(BACKWARD); 
-  rightMotor.run(FORWARD); 
-}
-
-// High-Level robot turn right func.
-void turnRight(int turnSpeed) {
+  Serial.println("LEFT");
   setRobotSpeed(turnSpeed);
   leftMotor.run(FORWARD); 
   rightMotor.run(BACKWARD); 
 }
-
-// High-Level robot stop func.
-// Not "active" breaking; uses friction to stop
+void turnRight(int turnSpeed) {
+  Serial.println("RIGHT");
+  setRobotSpeed(turnSpeed);
+  leftMotor.run(BACKWARD); 
+  rightMotor.run(FORWARD); 
+}
 void goRelease() {
+  Serial.println("RELEASE");
   leftMotor.run(RELEASE); 
   rightMotor.run(RELEASE); 
 }
 
-// Lab 3 demo commands
-void loop() {
-  goForward(MAX_SPEED);
-  delay(9000);
-  
-  goBackward(0.75*MAX_SPEED);
-  delay(6000);
+boolean isPanicking() {
+  sensorValue = analogRead(A0);
+  if((bootAvg - sensorValue) >= ALERT_TOLERENCE) {
+    Serial.print("*** TABLE DROP DETECTED! ALERT: ");
+    Serial.print(sensorValue);
+    Serial.println(" ***");
+    return true;
+  } else {
+    return false;
+  }
+}
 
-  goBackward(0.50*MAX_SPEED);
-  delay(8000);
-  
-  goBackward(0.25*MAX_SPEED);
-  delay(8000);
-  
-  goRelease();
-  delay(2000);
+// checks previous motor command ever 0.01 seconds for panic
+void safeDelay(int time) {
+  int i = 0;
+  while(i < time) {
+    if(isPanicking()) {
+      Serial.println("******* DELAY EXIT! PANIC DETECTED ******");
+      return;
+    }
+    i += 10;
+    delay(10);
+  }
+}
+
+void loop() {
+  if(isPanicking()) {
+    if(deltaState == STATE_SAFE) {
+      // Just entered panic state: attempt recovery
+      deltaState = STATE_PANIC;
+      goBackward(200);
+      delay(200);
+      turnLeft(100);
+      delay(100);
+      goRelease();
+    } else {
+      // Still panicking / last recovery attempt did not work
+      turnLeft(100);
+      delay(100);
+      goRelease();      
+    }
+  } else {
+    if(deltaState == STATE_PANIC) {
+      deltaState = STATE_SAFE;
+      goForward(GO_SPEED);
+    }
+  }
+
+  delay(10);
 }
